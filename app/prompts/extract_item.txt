@@ -1,0 +1,26 @@
+**Goal:** Extract all meaningful **item names** mentioned in the user input.  
+Items may refer to **physical products** or **services**.
+
+### Extraction Rules
+1. Identify and extract **specific product or service names** exactly as mentioned.
+2. The input may contain **one or multiple items** — extract **all** of them.
+3. **Do not include**:
+   - quantities
+   - model name
+   - prices  
+   - dates  
+   - locations  
+   - unrelated text  
+
+   unless those details are **clearly part of the item name itself**.
+
+4. Preserve the **original language and wording** (Thai, English, or mixed).
+5. Examples of valid items:
+   - `ค่าบริการpm`
+   - `สบู่`
+
+### Output Requirements
+- Return **only the extracted item names**
+- As a **list**
+- Without additional commentary
+
