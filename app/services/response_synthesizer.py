@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
@@ -22,27 +22,36 @@ class ResponseSynthesizer:
             raise FileNotFoundError(f"Prompt file not found at {self.prompt_path}")
         return self.prompt_path.read_text().strip()
 
-    def synthesize(self, user_query: str, extracted_item: str, selected_item: Optional[str], forecast_data: Optional[Dict[str, Any]]) -> str:
+    def synthesize(self, user_query: str, results: List[Dict[str, Any]]) -> str:
         system_prompt = self._load_prompt()
         
         prompt = ChatPromptTemplate.from_messages([
             ("system", "{system_prompt}"),
-            ("user", "Query: {user_query}\nExtracted Item: {extracted_item}\nSelected Item: {selected_item}\nData: {forecast_data}")
+            ("user", "Query: {user_query}\nContext Data:\n{context_data}")
         ])
 
         chain = prompt | self.llm | StrOutputParser()
 
-        # Handle None for data to avoid string conversion errors or awkward "None" strings if possible, 
-        # though the prompt handles "None" explicitly.
-        forecast_str = str(forecast_data) if forecast_data else "No data found"
-        selected_str = str(selected_item) if selected_item else "None"
+        # Format results into a readable context string
+        context_parts = []
+        for i, res in enumerate(results, 1):
+            item_name = res.get("extracted_item", "Unknown Item")
+            selected = res.get("selected_item", "None")
+            forecast = res.get("demand_forecast", "No data found")
+            
+            part = (
+                f"Item {i}: {item_name}\n"
+                f"  - Selected Candidate: {selected}\n"
+                f"  - Forecast Data: {forecast}\n"
+            )
+            context_parts.append(part)
+        
+        context_data = "\n".join(context_parts)
 
         return chain.invoke({
             "system_prompt": system_prompt,
             "user_query": user_query,
-            "extracted_item": extracted_item,
-            "selected_item": selected_str,
-            "forecast_data": forecast_str
+            "context_data": context_data
         })
 
 if __name__ == "__main__":
@@ -51,9 +60,12 @@ if __name__ == "__main__":
     print("Testing ResponseSynthesizer...")
     response = synthesizer.synthesize(
         user_query="what is the forecast of flapbox",
-        extracted_item="flapbox",
-        selected_item="Flap_Box_Type_1",
-        forecast_data={"date": "2023-10-01", "qty": 500, "meta": "high demand"}
+        results=[{
+             "extracted_item": "flapbox",
+             "selected_item": "Flap_Box_Type_1",
+             "demand_forecast": {"date": "2023-10-01", "qty": 500, "meta": "high demand"}
+        }]
     )
     print("\n--- Response ---")
     print(response)
+    

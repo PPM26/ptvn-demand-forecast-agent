@@ -45,7 +45,7 @@ class RagFlowService:
             raise FileNotFoundError(f"Prompt file not found at {self.prompt_path}")
         return self.prompt_path.read_text().strip()
 
-    async def _retrieve(self, question: str, top_k: int = None) -> List[Any]:
+    async def _retrieve(self, item_name: str, top_k: int = None) -> List[Any]:
         if not self.rag_client:
             return []
 
@@ -58,7 +58,7 @@ class RagFlowService:
             # sync call into SDK
             return self.rag_client.retrieve(
                 dataset_ids=RAGFLOW_PO_DATASET_IDS,
-                question=question,
+                question=item_name,
                 top_k=top_k,
             )
 
@@ -70,10 +70,10 @@ class RagFlowService:
             )
             return list(result or [])
         except asyncio.TimeoutError:
-            print(f"[RAGFLOW TIMEOUT] question='{question}' (top_k={top_k})")
+            print(f"[RAGFLOW TIMEOUT] item_name='{item_name}' (top_k={top_k})")
             return []
         except Exception as e:
-            print(f"[RAGFLOW] Error during retrieve (question='{question}'): {e}")
+            print(f"[RAGFLOW] Error during retrieve (item_name='{item_name}'): {e}")
             return []
 
     @staticmethod
@@ -157,7 +157,7 @@ class RagFlowService:
 
         return None
 
-    async def select_best_match(self, extracted_items: str, candidates: List[Any]) -> str:
+    async def select_best_match(self, item_name: str, candidates: List[Any]) -> str:
         if not candidates:
             return "None"
         
@@ -184,7 +184,7 @@ class RagFlowService:
         system_prompt = self._load_prompt()
         prompt = ChatPromptTemplate.from_messages([
             ("system", "{system_prompt}"),
-            ("user", "User Input Item: {extracted_items}\n\nCandidate Items:\n{candidates}")
+            ("user", "User Input Item: {item_name}\n\nCandidate Items:\n{candidates}")
         ])
         
         chain = prompt | self.llm
@@ -192,7 +192,7 @@ class RagFlowService:
         try:
             result = await chain.ainvoke({
                 "system_prompt": system_prompt,
-                "extracted_items": extracted_items,
+                "item_name": item_name,
                 "candidates": candidate_list_str
             })
             return result.content.strip()

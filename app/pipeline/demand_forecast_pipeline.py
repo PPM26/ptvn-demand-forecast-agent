@@ -1,84 +1,125 @@
 import asyncio
-from typing import Dict, Any, Optional
-from app.services.item_extractor import ItemExtractor
+from typing import Dict, Any, List, Union
 from app.services.ragflow_service import RagFlowService
 from app.services.db_service import get_demand_forecast
-from app.services.response_synthesizer import ResponseSynthesizer
 
 class DemandForecastPipeline:
     def __init__(self):
-        self.extractor = ItemExtractor()
         self.rag_service = RagFlowService()
-        self.synthesizer = ResponseSynthesizer()
 
-    async def run(self, user_query: str) -> Dict[str, Any]:
+    async def run(self, input_data: Union[str, List[str]]) -> Dict[str, Any]:
         """
-        Executes the full pipeline:
-        1. Extract item from user query
-        2. Retrieve candidates from RagFlow
-        3. Select best match
-        4. Query DB for demand forecast
+        Executes the pipeline:
+        1. Accept (list of) items
+        2. Retrieve best match item from RagFlow
+        3. Query DB for demand forecast
+        4. Return formatted results
         """
-        print(f"--- Starting Demand Forecast Pipeline: {user_query} ---")
+        print(f"--- Starting Demand Forecast Pipeline with input: {input_data} ---")
         
-        # 1. Extract Item
-        extraction_result = self.extractor.extract(user_query)
-        if not extraction_result.items:
-            print("No items extracted.")
-            return {"error": "No items extracted from query"}
-        
-        target_items = extraction_result.items
-        print(f"Extracted Items: {target_items}")
+        # 1. Normalize Input
+        target_items = []
+        if isinstance(input_data, str):
+            if "," in input_data:
+                target_items = [item.strip() for item in input_data.split(",") if item.strip()]
+            else:
+                target_items = [input_data]
+        elif isinstance(input_data, list):
+            target_items = input_data
+        else:
+            return {"error": "Invalid input format. Expected string or list."}
 
-        # Process each extracted item
-        results = []
+        # 2. Process Items
+        processed_results = []
         for target_item in target_items:
-
-            # 2 & 3. Process with RagFlow (Retrieve + Select Best Match)
-            # RagFlowService.process_item does retrieve + selection
+            # Retrieve + Select Best Match
             selected_item = await self.rag_service.process_item(target_item)
             
             if not selected_item or selected_item == "None":
                 print(f"No valid item selected from RagFlow for {target_item}.")
-                results.append({
-                    "extracted_item": target_item,
+                processed_results.append({
+                    "input_item": target_item,
                     "selected_item": None,
                     "demand_forecast": None,
                     "message": "Could not find a matching item in the RagFlow candidates."
                 })
                 continue
 
-            # 4. Get Demand Forecast from DB
+            # Query DB
             print(f"Querying DB for selected item: {selected_item}")
             forecast = get_demand_forecast(selected_item)
-
-            # 5. Synthesize Answer
-            print("Synthesizing answer...")
-            answer = self.synthesizer.synthesize(
-                user_query=user_query,
-                extracted_item=target_item,
-                selected_item=selected_item,
-                forecast_data=forecast
-            )
             
-            result = {
-                # "extracted_item": target_item,
-                # "selected_item": selected_item,
-                # "demand_forecast": forecast,
-                "answer": answer
-            }
-            results.append(result)
+            processed_results.append({
+                "input_item": target_item,
+                "selected_item": selected_item,
+                "demand_forecast": forecast
+            })
+
+        # 3. Format Answer
+        answer = self._format_response(processed_results)
+        
+        final_output = {
+            "results": processed_results,
+            "answer": answer
+        }
         
         print("--- Pipeline Finished ---")
-        return {"results": results}
+        return final_output
+    
+    def _format_response(self, results: List[Dict[str, Any]]) -> str:
+        if not results:
+            return "No results processed."
+        
+        # Helper to format a single forecast dict
+        def format_forecast_data(data: Dict[str, Any]) -> str:
+            if not data:
+                return "No forecast data found."
+
+            val = data.get('demand_forecast', 'N/A')
+            return f"Forecast: {val}"
+
+        # If single item
+        if len(results) == 1:
+            res = results[0]
+            matched_name = res['selected_item']
+            forecast = res['demand_forecast']
+            header = f"### Item: {matched_name}"
+            
+            if forecast:
+                content = format_forecast_data(forecast)
+            else:
+                content = f"No demand forecast found for item '{res['input_item']}' (RagFlow Matched: {res['selected_item']})."
+            
+            return f"{header}\n{content}"
+
+        # If multiple items
+        lines = []
+        for res in results:
+            matched_name = res['selected_item']
+            forecast = res['demand_forecast']
+            
+            header = f"### Item: {matched_name}"
+            
+            content = format_forecast_data(forecast)
+            
+            lines.append(f"{header}\n{content}")
+        
+        return "\n\n".join(lines)
 
 if __name__ == "__main__":
     async def main():
         pipeline = DemandForecastPipeline()
-        # Test query
-        test_query = "demand กระติกน้ำร้อน และ ตู้เตรียม เดือนตุลาคมเกิน 3% ไหม"
-        result = await pipeline.run(test_query)
-        print("\nFinal Result Output:")
-        print(result)
+        
+        # Test 1: String Item(s)
+        # print("Testing string Item(s)...")
+        # res1 = await pipeline.run("กระติกน้ำ, flap box, ตู้")
+        # print("Result:\n", res1['answer'])
+        
+        # print("-" * 20)
+        
+        # Test 2: List Item(s)
+        print("Testing list Item(s)...")
+        res2 = await pipeline.run(["กระติกน้ำ", "flap box", "ตู้"])
+        print("Result:\n", res2['answer'])
 
     asyncio.run(main())
