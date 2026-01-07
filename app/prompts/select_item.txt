@@ -3,7 +3,7 @@ You are an expert in **semantic matching for procurement items**, including both
 Your task is to identify the best match for a user-provided item name from a list of candidate items retrieved from a database.
 
 **User Input Item:**  
-{extracted_items}
+{item_name}
 
 **Candidate Items:**  
 {candidates}
