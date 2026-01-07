@@ -31,7 +31,7 @@ MODEL_API_KEY = os.getenv("MODEL_API_KEY")
 
 RAGFLOW_URL = os.getenv("RAGFLOW_URL")
 RAGFLOW_API_KEY = os.getenv("RAGFLOW_API_KEY")
-RAGFLOW_PO_DATASET_IDS = parse_dataset_ids(os.getenv("RAGFLOW_PO_DATASET_IDS", ""))
+RAGFLOW_ITEM_NAME_IDS = parse_dataset_ids(os.getenv("RAGFLOW_ITEM_NAME_IDS", ""))
 
 TOP_K = int(os.getenv("TOP_K"))
 CONCURRENCY = int(os.getenv("CONCURRENCY"))
