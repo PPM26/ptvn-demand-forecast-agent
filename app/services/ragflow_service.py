@@ -11,7 +11,7 @@ from ragflow_sdk import RAGFlow
 from app.core.config import (
     RAGFLOW_URL,
     RAGFLOW_API_KEY,
-    RAGFLOW_PO_DATASET_IDS,
+    RAGFLOW_ITEM_NAME_IDS,
     TOP_K,
     MODEL_API_KEY,
     MODEL_URL,
@@ -57,7 +57,7 @@ class RagFlowService:
         def _call():
             # sync call into SDK
             return self.rag_client.retrieve(
-                dataset_ids=RAGFLOW_PO_DATASET_IDS,
+                dataset_ids=RAGFLOW_ITEM_NAME_IDS,
                 question=item_name,
                 top_k=top_k,
             )

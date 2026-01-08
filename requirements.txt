@@ -3,3 +3,6 @@ psycopg2-binary
 langchain-openai
 langchain-core
 ragflow-sdk
+fastapi
+uvicorn
+fastmcp

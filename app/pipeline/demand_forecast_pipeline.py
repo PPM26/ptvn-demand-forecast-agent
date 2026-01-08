@@ -60,7 +60,7 @@ class DemandForecastPipeline:
         
         final_output = {
             "results": processed_results,
-            "answer": answer
+            "demand_forecast": answer
         }
         
         print("--- Pipeline Finished ---")
@@ -113,13 +113,13 @@ if __name__ == "__main__":
         # Test 1: String Item(s)
         # print("Testing string Item(s)...")
         # res1 = await pipeline.run("กระติกน้ำ, flap box, ตู้")
-        # print("Result:\n", res1['answer'])
+        # print("Result:\n", res1['demand_forecast'])
         
         # print("-" * 20)
         
         # Test 2: List Item(s)
         print("Testing list Item(s)...")
         res2 = await pipeline.run(["กระติกน้ำ", "flap box", "ตู้"])
-        print("Result:\n", res2['answer'])
+        print("Result:\n", res2['demand_forecast'])
 
     asyncio.run(main())
