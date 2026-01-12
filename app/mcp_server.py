@@ -19,7 +19,7 @@ def get_pipeline() -> DemandForecastPipeline:
 
 
 @mcp.tool()
-async def get_demand_forecast(item_names: str) -> str:
+async def get_demand_forecast(item_names: str | list[str]) -> str:
     """
     Get demand forecast for one or more items.
     
@@ -29,8 +29,11 @@ async def get_demand_forecast(item_names: str) -> str:
     3. Returning formatted forecast results
     
     Args:
-        item_names: Single item name or comma-separated list of items.
-                   Examples: "กระติกน้ำ" or "กระติกน้ำ, flap box, ตู้"
+        item_names: Single item name, comma-separated items, or list of items.
+                   Examples: 
+                   - "กระติกน้ำ" (single item)
+                   - "กระติกน้ำ, flap box, ตู้" (comma-separated)
+                   - ["กระติกน้ำ", "flap box", "ตู้"] (list)
     
     Returns:
         Formatted demand forecast results including:
@@ -40,6 +43,7 @@ async def get_demand_forecast(item_names: str) -> str:
     Examples:
         >>> await get_demand_forecast("กระติกน้ำ")
         >>> await get_demand_forecast("กระติกน้ำ, flap box")
+        >>> await get_demand_forecast(["กระติกน้ำ", "flap box"])
     """
     try:
         forecast_pipeline = get_pipeline()
@@ -53,31 +57,6 @@ async def get_demand_forecast(item_names: str) -> str:
         
     except Exception as e:
         return f"Error processing demand forecast: {str(e)}"
-
-
-@mcp.tool()
-async def get_multiple_forecasts(items: list[str]) -> str:
-    """
-    Get demand forecasts for multiple items (as a list).
-    
-    Args:
-        items: List of item names, e.g., ["กระติกน้ำ", "flap box", "ตู้"]
-    
-    Returns:
-        Formatted demand forecast results for all items
-    """
-    try:
-        forecast_pipeline = get_pipeline()
-        
-        result = await forecast_pipeline.run(items)
-        
-        if "error" in result:
-            return f"Error: {result['error']}"
-        
-        return result.get("demand_forecast", "No forecast data available")
-        
-    except Exception as e:
-        return f"Error processing demand forecasts: {str(e)}"
 
 
 if __name__ == "__main__":

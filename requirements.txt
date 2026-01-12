@@ -2,7 +2,7 @@ python-dotenv
 psycopg2-binary
 langchain-openai
 langchain-core
-ragflow-sdk
+ragflow-sdk>=0.23.1
 fastapi
 uvicorn
 fastmcp

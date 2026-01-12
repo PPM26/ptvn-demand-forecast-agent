@@ -2,155 +2,134 @@
 
 This guide explains how to use the Model Context Protocol (MCP) server for the Demand Forecast Agent.
 
-## What is the MCP Server?
+## Overview
 
-The MCP server exposes your demand forecast pipeline as tools that AI assistants (like Claude Desktop, IDEs, or other MCP clients) can use to query demand forecasts for items.
+The MCP server exposes the demand forecast pipeline as tools that can be used by:
+- MCP Inspector
+- Other MCP-compliant clients
+
+It supports two transport modes:
+1. **SSE (Server-Sent Events)**: Mounted on the FastAPI application. Recommended for development, debugging with Inspector, and when running as a web service.
+2. **Stdio**: Direct standard input/output. Recommended for local integration with Claude Desktop.
 
 ## Available Tools
 
-### 1. `get_demand_forecast`
-Get demand forecast for one or more items using a comma-separated string.
+### `get_demand_forecast`
+
+Get demand forecast for one or more items. Accepts both string and list inputs. It identifies the item via RagFlow and retrieves the latest forecast from the database.
 
 **Parameters:**
-- `item_names` (string): Single item name or comma-separated list
+- `item_names` (string | list): Single item name, comma-separated items, or list of items.
 
 **Examples:**
-```
-get_demand_forecast("กระติกน้ำ")
-get_demand_forecast("กระติกน้ำ, flap box, ตู้")
-```
+- `"กระติกน้ำ"` (Single string)
+- `"กระติกน้ำ, flap box"` (Comma-separated string)
+- `["กระติกน้ำ", "flap box"]` (List of strings)
 
-### 2. `get_multiple_forecasts`
-Get demand forecasts for multiple items using a list.
+## Running the Server
 
-**Parameters:**
-- `items` (list): List of item names
+### Option 1: FastAPI with SSE (Recommended for Inspector)
 
-**Example:**
-```
-get_multiple_forecasts(["กระติกน้ำ", "flap box", "ตู้"])
-```
-
-## Starting the MCP Server
-
-### Basic Usage
+Run the main FastAPI application. This serves both the API and the MCP SSE endpoint.
 
 ```bash
-cd /Users/ppm/Pantavanij/demand_forecast_agent
+uvicorn app.main:app --reload
+```
+
+- **API Root**: `http://localhost:8000`
+- **MCP SSE Endpoint**: `http://localhost:8000/sse/sse` (Use this URL in your MCP client)
+
+### Option 2: Stdio Mode (For Local Clients)
+
+Run the standalone MCP script for communication over stdin/stdout:
+
+```bash
 python run_mcp_server.py
 ```
 
-### Prerequisites
+## Debugging with MCP Inspector
 
-1. **Install dependencies:**
-   ```bash
-   pip install -r requirements.txt
-   ```
+You can use the MCP Inspector to test tools interactively without setting up a full client.
 
-2. **Configure environment variables:**
-   Ensure your `.env` file contains required credentials for:
-   - OpenAI API (for item selection)
-   - RagFlow API (for knowledge base matching)
-   - PostgreSQL database (for forecast data)
+1. Start the FastAPI server (Option 1 above).
+2. In a new terminal, run the inspector pointing to the SSE endpoint:
 
-## Connecting AI Assistants
+```bash
+npx @modelcontextprotocol/inspector http://localhost:8000/sse/sse
+```
 
-### Claude Desktop
+This will open a web interface in your browser where you can:
+- View available tools
+- Execute `get_demand_forecast` with different inputs
+- View the tool output and JSON logs
 
-1. **Locate the Claude Desktop config file:**
-   - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
-   - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
+### Recommended: Stdio Configuration
 
-2. **Add the MCP server configuration:**
-   ```json
-   {
-     "mcpServers": {
-       "demand-forecast": {
-         "command": "python",
-         "args": [
-           "/Users/ppm/Pantavanij/demand_forecast_agent/run_mcp_server.py"
-         ],
-         "env": {}
-       }
-     }
-   }
-   ```
+This method allows Claude Desktop to manage the server process automatically.
 
-3. **Restart Claude Desktop**
+```json
+{
+  "mcpServers": {
+    "demand-forecast": {
+      "command": "/absolute/path/to/python",
+      "args": ["/absolute/path/to/Pantavanij/demand_forecast_agent/run_mcp_server.py"],
+      "env": {
+        "PYTHONPATH": "/absolute/path/to/Pantavanij/demand_forecast_agent"
+      }
+    }
+  }
+}
+```
+**Note**: Replace `/absolute/path/to/...` with the actual full paths on your machine. You should use the python executable from your virtual environment (e.g., `.venv/bin/python`).
 
-4. **Use the tools:**
-   You can now ask Claude to get demand forecasts:
-   - "Get the demand forecast for กระติกน้ำ"
-   - "What's the forecast for flap box and ตู้?"
+### Alternative: SSE Configuration
 
-### Other MCP Clients
+If you prefer to keep `uvicorn` running separately:
 
-The server uses the standard MCP protocol and can be integrated with:
-- IDEs with MCP support (VSCode, etc.)
-- Custom MCP clients
-- Other AI assistants supporting MCP
+```json
+{
+  "mcpServers": {
+    "demand-forecast-sse": {
+      "url": "http://localhost:8000/sse/sse"
+    }
+  }
+}
+```
 
-Refer to your client's documentation for specific integration steps.
+## Testing Logic Programmatically
 
-## How It Works
-
-When an AI assistant calls a tool:
-
-1. **Item Matching:** The system matches input item names against a knowledge base (RagFlow) to find the exact product names
-2. **Database Query:** Queries the PostgreSQL database for the latest demand forecast data
-3. **Response Formatting:** Returns formatted results with item names and forecast data
-
-## Troubleshooting
-
-### Server Won't Start
-
-- **Check dependencies:** Run `pip install -r requirements.txt`
-- **Verify environment variables:** Ensure `.env` file has all required values
-- **Check Python version:** Requires Python 3.10+
-
-### Tool Calls Fail
-
-- **Database connection:** Verify PostgreSQL connection details in `.env`
-- **RagFlow API:** Ensure RagFlow API key and endpoint are correct
-- **OpenAI API:** Check OpenAI API key is valid
-
-### No Results Returned
-
-- **Item not found:** The item may not exist in the RagFlow knowledge base
-- **No forecast data:** The item may not have forecast data in the database
-- **Check logs:** Run the server directly to see detailed error messages
-
-## Development
-
-### Testing the Server
-
-You can test the server programmatically:
+To test the core forecasting logic without the MCP layer (avoiding FastMCP wrapper issues), import and use the pipeline directly:
 
 ```python
 import asyncio
-from app.mcp_server import get_demand_forecast
+from app.pipeline.demand_forecast_pipeline import DemandForecastPipeline
 
 async def test():
-    result = await get_demand_forecast("กระติกน้ำ")
+    # Initialize pipeline
+    pipeline = DemandForecastPipeline()
+    
+    # Test with a single item
+    print("Testing single item...")
+    result = await pipeline.run("กระติกน้ำ")
     print(result)
 
-asyncio.run(test())
+if __name__ == "__main__":
+    asyncio.run(test())
 ```
 
-### Adding New Tools
+## Prerequisites & Troubleshooting
 
-To add new tools to the MCP server, edit `app/mcp_server.py` and use the `@mcp.tool()` decorator:
+### Setup
+1. **Install Dependencies**: 
+   ```bash
+   pip install -r requirements.txt
+   ```
+2. **Environment Variables**: Ensure `.env` contains:
+   - `OPENAI_API_KEY`
+   - `RAGFLOW_API_KEY` & `RAGFLOW_BASE_URL`
+   - `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_PORT`
 
-```python
-@mcp.tool()
-async def your_new_tool(param: str) -> str:
-    """Tool description."""
-    # Implementation
-    return result
-```
-
-## Additional Resources
-
-- [FastMCP Documentation](https://github.com/jlowin/fastmcp)
-- [Model Context Protocol Specification](https://spec.modelcontextprotocol.io/)
-- [Claude Desktop MCP Setup](https://docs.anthropic.com/claude/docs/model-context-protocol)
+### Common Issues
+- **Tool Call Fails**: Check the terminal running `uvicorn` for traceback errors.
+- **Connection Refused**: Ensure the server is running on port 8000.
+- **Import Errors**: Set `PYTHONPATH` to your project root if running scripts from outside the directory.

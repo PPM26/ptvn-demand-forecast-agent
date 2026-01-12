@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from app.fastapi.routers import router as pipeline_router
 from dotenv import load_dotenv
+from app.mcp_server import mcp
 
 load_dotenv()
 
@@ -11,6 +12,9 @@ app = FastAPI(
 )
 
 app.include_router(pipeline_router, tags=["Pipeline"])
+
+sse = mcp.http_app(transport="sse")
+app.mount("/sse", sse)
 
 @app.get("/")
 async def root():
